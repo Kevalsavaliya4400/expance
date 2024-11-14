@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -12,22 +12,32 @@ interface AddExpenseModalProps {
 
 export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProps) {
   const [amount, setAmount] = useState('');
+  const [type, setType] = useState<'income' | 'expense'>('expense');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const { currentUser } = useAuth();
 
-  const categories = [
-    'Food & Dining',
-    'Shopping',
-    'Transport',
-    'Bills & Utilities',
-    'Entertainment',
-    'Healthcare',
-    'Travel',
-    'Other'
-  ];
+  const categories = {
+    income: [
+      'Salary',
+      'Freelance',
+      'Investments',
+      'Business',
+      'Other Income'
+    ],
+    expense: [
+      'Food & Dining',
+      'Shopping',
+      'Transport',
+      'Bills & Utilities',
+      'Entertainment',
+      'Healthcare',
+      'Travel',
+      'Other'
+    ]
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,18 +45,23 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
 
     try {
       setLoading(true);
-      await addDoc(collection(db, 'expenses'), {
-        userId: currentUser.uid,
+      const transactionRef = collection(db, 'users', currentUser.uid, 'transactions');
+      await addDoc(transactionRef, {
         amount: parseFloat(amount),
+        type,
         category,
         description,
         date,
-        createdAt: new Date()
+        createdAt: serverTimestamp()
       });
-      toast.success('Expense added successfully!');
+      toast.success(`${type === 'income' ? 'Income' : 'Expense'} added successfully!`);
       onClose();
+      setAmount('');
+      setCategory('');
+      setDescription('');
+      setDate(new Date().toISOString().split('T')[0]);
     } catch (error) {
-      toast.error('Failed to add expense.');
+      toast.error(`Failed to add ${type}.`);
     } finally {
       setLoading(false);
     }
@@ -58,12 +73,36 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6 animate-slide-up">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Add New Expense</h2>
+          <h2 className="text-xl font-semibold">Add Transaction</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex gap-4 mb-4">
+            <button
+              type="button"
+              className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+                type === 'income'
+                  ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+              }`}
+              onClick={() => setType('income')}
+            >
+              Income
+            </button>
+            <button
+              type="button"
+              className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+                type === 'expense'
+                  ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+              }`}
+              onClick={() => setType('expense')}
+            >
+              Expense
+            </button>
+          </div>
           <div>
             <label htmlFor="amount" className="block text-sm font-medium mb-2">
               Amount
@@ -90,7 +129,7 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
               onChange={(e) => setCategory(e.target.value)}
             >
               <option value="">Select a category</option>
-              {categories.map((cat) => (
+              {categories[type].map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
@@ -124,12 +163,16 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
           <button
             type="submit"
             disabled={loading}
-            className="btn btn-primary w-full flex items-center justify-center"
+            className={`btn w-full flex items-center justify-center ${
+              type === 'income'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-red-600 hover:bg-red-700 text-white'
+            }`}
           >
             {loading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
             ) : (
-              'Add Expense'
+              `Add ${type === 'income' ? 'Income' : 'Expense'}`
             )}
           </button>
         </form>

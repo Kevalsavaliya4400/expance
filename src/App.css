@@ -1,0 +1,257 @@
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  padding: 0.8em 1.2em;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: var(--button-hover-bg);
+}
+
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--button-focus-bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* Root Variables (Light and Dark Mode) */
+:root {
+  --bg-color: #f9f9f9;
+  --text-color: #333;
+  --link-color: #1a73e8;
+  --card-bg: #fff;
+  --button-bg: #4caf50;
+  --button-hover-bg: #45a049;
+  --button-focus-bg: #388e3c;
+  --button-text: #fff;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --border-color: #ddd;
+}
+
+/* Dark Mode Variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #121212;
+    --text-color: #f5f5f5;
+    --link-color: #8ab4f8;
+    --card-bg: #1e1e1e;
+    --button-bg: #43a047;
+    --button-hover-bg: #388e3c;
+    --button-focus-bg: #2c6b32;
+    --button-text: #fff;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --border-color: #444;
+  }
+}
+
+/* Layout */
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Navbar */
+.navbar {
+  height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.navbar .logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.navbar .icon-btn {
+  background: none;
+  border: none;
+  padding: 0.5em;
+  color: var(--text-color);
+  transition: color 0.2s;
+}
+
+.navbar .icon-btn:hover {
+  color: var(--link-color);
+}
+
+.navbar .theme-btn {
+  border-radius: 50%;
+  padding: 0.5em;
+  background-color: var(--button-bg);
+  transition: background-color 0.3s;
+}
+
+.navbar .theme-btn:hover {
+  background-color: var(--button-hover-bg);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background-color: var(--card-bg);
+  box-shadow: 2px 0 4px var(--shadow-color);
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  padding: 1rem;
+}
+
+.sidebar .link {
+  display: flex;
+  align-items: center;
+  padding: 0.8em 1.5em;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+  transition: background-color 0.3s;
+  border-radius: 6px;
+}
+
+.sidebar .link:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.sidebar .link.active {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+}
+
+/* Cards */
+.card {
+  padding: 2em;
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px var(--shadow-color);
+  transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.8em 1.2em;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border-radius: 8px;
+  text-align: center;
+  transition: background-color 0.3s ease;
+}
+
+.btn:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.btn-secondary {
+  background-color: #888;
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background-color: #666;
+}
+
+/* Forms */
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 0.8em;
+  margin-bottom: 1em;
+  background-color: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--button-bg);
+  outline: none;
+}
+
+/* Animations */
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Accessibility & Responsive Design */
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .sidebar {
+    position: static;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+}
