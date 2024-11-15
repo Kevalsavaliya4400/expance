@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import toast from 'react-hot-toast';
 
 interface AddExpenseModalProps {
@@ -18,6 +19,7 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const { currentUser } = useAuth();
+  const { currency, formatAmount } = useCurrency();
 
   const categories = {
     income: [
@@ -45,17 +47,27 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
 
     try {
       setLoading(true);
+      const numericAmount = parseFloat(amount);
+      
+      if (isNaN(numericAmount)) {
+        toast.error('Please enter a valid amount');
+        return;
+      }
+
       const transactionRef = collection(db, 'users', currentUser.uid, 'transactions');
       await addDoc(transactionRef, {
-        amount: parseFloat(amount),
+        amount: numericAmount,
         type,
         category,
         description,
         date,
+        currency, // Store the currency used when creating the transaction
         createdAt: serverTimestamp()
       });
+
       toast.success(`${type === 'income' ? 'Income' : 'Expense'} added successfully!`);
       onClose();
+      // Reset form
       setAmount('');
       setCategory('');
       setDescription('');
@@ -68,6 +80,9 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
   }
 
   if (!isOpen) return null;
+
+  // Preview the amount in the current currency
+  const previewAmount = amount ? formatAmount(parseFloat(amount)) : '';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -105,7 +120,7 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
           </div>
           <div>
             <label htmlFor="amount" className="block text-sm font-medium mb-2">
-              Amount
+              Amount ({currency})
             </label>
             <input
               id="amount"
@@ -115,7 +130,13 @@ export default function AddExpenseModal({ isOpen, onClose }: AddExpenseModalProp
               className="input"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              placeholder={`Enter amount in ${currency}`}
             />
+            {amount && (
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Preview: {previewAmount}
+              </p>
+            )}
           </div>
           <div>
             <label htmlFor="category" className="block text-sm font-medium mb-2">

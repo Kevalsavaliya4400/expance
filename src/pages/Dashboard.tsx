@@ -30,6 +30,7 @@ interface Transaction {
   category: string;
   date: string;
   description: string;
+  currency: string;
 }
 
 export default function Dashboard() {
@@ -39,7 +40,7 @@ export default function Dashboard() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const { currentUser } = useAuth();
-  const { formatAmount } = useCurrency();
+  const { formatAmount, currency, convertAmount } = useCurrency();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -70,15 +71,43 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [currentUser]);
 
+  // Calculate totals by converting each transaction to the current currency
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + convertAmount(t.amount, t.currency || 'USD', currency), 0);
 
   const totalExpenses = transactions
     .filter((t) => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + convertAmount(t.amount, t.currency || 'USD', currency), 0);
 
   const balance = totalIncome - totalExpenses;
+
+  // Group transactions by category for charts
+  const categoryTotals = transactions.reduce((acc, transaction) => {
+    const convertedAmount = convertAmount(
+      transaction.amount,
+      transaction.currency || 'USD',
+      currency
+    );
+
+    const key = `${transaction.type}-${transaction.category}`;
+    acc[key] = (acc[key] || 0) + convertedAmount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const incomeData = Object.entries(categoryTotals)
+    .filter(([key]) => key.startsWith('income-'))
+    .map(([key, value]) => ({
+      name: key.replace('income-', ''),
+      amount: value,
+    }));
+
+  const expenseData = Object.entries(categoryTotals)
+    .filter(([key]) => key.startsWith('expense-'))
+    .map(([key, value]) => ({
+      name: key.replace('expense-', ''),
+      amount: value,
+    }));
 
   const stats = [
     {
@@ -104,50 +133,25 @@ export default function Dashboard() {
     },
   ];
 
-  const incomeData = transactions
-    .filter((t) => t.type === 'income')
-    .reduce((acc, t) => {
-      const existing = acc.find((item) => item.name === t.category);
-      if (existing) {
-        existing.amount += t.amount;
-      } else {
-        acc.push({ name: t.category, amount: t.amount });
-      }
-      return acc;
-    }, [] as { name: string; amount: number }[]);
-
-  const expenseData = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((acc, t) => {
-      const existing = acc.find((item) => item.name === t.category);
-      if (existing) {
-        existing.amount += t.amount;
-      } else {
-        acc.push({ name: t.category, amount: t.amount });
-      }
-      return acc;
-    }, [] as { name: string; amount: number }[]);
-
-  const handleEditTransaction = async () => {
-    if (!editingTransaction) return;
-
+  const handleEditTransaction = async (transaction: Transaction) => {
     try {
       const transactionRef = doc(
         db,
         'users',
-        currentUser.uid,
+        currentUser!.uid,
         'transactions',
-        editingTransaction.id
+        transaction.id
       );
       await updateDoc(transactionRef, {
-        description: editingTransaction.description,
-        amount: editingTransaction.amount,
-        category: editingTransaction.category,
+        amount: transaction.amount,
+        category: transaction.category,
+        description: transaction.description,
+        currency: currency, // Update to current currency
       });
       setIsEditModalOpen(false);
+      setEditingTransaction(null);
       toast.success('Transaction updated successfully');
-    } catch (err) {
-      console.error('Error updating transaction:', err);
+    } catch (error) {
       toast.error('Failed to update transaction');
     }
   };
@@ -157,26 +161,15 @@ export default function Dashboard() {
       const transactionRef = doc(
         db,
         'users',
-        currentUser.uid,
+        currentUser!.uid,
         'transactions',
         transactionId
       );
       await deleteDoc(transactionRef);
       toast.success('Transaction deleted successfully');
-    } catch (err) {
-      console.error('Error deleting transaction:', err);
+    } catch (error) {
       toast.error('Failed to delete transaction');
     }
-  };
-
-  const openEditModal = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    setIsEditModalOpen(true);
-  };
-
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setEditingTransaction(null);
   };
 
   if (loading) {
@@ -222,178 +215,85 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Charts and Transactions Grid */}
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Recent Transactions */}
         <div className="card p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4">Recent Transactions</h2>
-          <div className="space-y-3 max-h-[calc(100vh-20rem)] overflow-auto">
-            {transactions.slice(0, 10).map((transaction) => (
-              <div
-                key={transaction.id}
-                className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                onClick={() => openEditModal(transaction)}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{transaction.description}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                    {transaction.category} •{' '}
-                    {new Date(transaction.date).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 ml-4">
-                  <span
-                    className={`font-semibold whitespace-nowrap ${
-                      transaction.type === 'income'
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    }`}
-                  >
-                    {transaction.type === 'income' ? '+' : '-'}
-                    {formatAmount(transaction.amount)}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteTransaction(transaction.id);
-                    }}
-                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Income by Category</h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={incomeData}>
+                <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value: number) => [formatAmount(value), 'Amount']}
+                />
+                <Bar dataKey="amount" fill="#4caf50" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Charts */}
-        <div className="space-y-4 sm:space-y-6">
-          <div className="card p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4">Income by Category</h2>
-            <div className="h-64 sm:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={incomeData}>
-                  <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
-                  <XAxis
-                    dataKey="name"
-                    className="text-gray-600 dark:text-gray-400"
-                    tick={{ fontSize: 12 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={60}
-                  />
-                  <YAxis
-                    width={60}
-                    tickFormatter={(value) => formatAmount(value).replace(/[^0-9.]/g, '')}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [formatAmount(value), 'Amount']}
-                  />
-                  <Bar dataKey="amount" fill="#4caf50" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="card p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4">Expenses by Category</h2>
-            <div className="h-64 sm:h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={expenseData}>
-                  <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
-                  <XAxis
-                    dataKey="name"
-                    className="text-gray-600 dark:text-gray-400"
-                    tick={{ fontSize: 12 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={60}
-                  />
-                  <YAxis
-                    width={60}
-                    tickFormatter={(value) => formatAmount(value).replace(/[^0-9.]/g, '')}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [formatAmount(value), 'Amount']}
-                  />
-                  <Bar dataKey="amount" fill="#f44336" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+        <div className="card p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Expenses by Category</h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={expenseData}>
+                <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value: number) => [formatAmount(value), 'Amount']}
+                />
+                <Bar dataKey="amount" fill="#f44336" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {isEditModalOpen && editingTransaction && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-500 bg-opacity-50 z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h3 className="text-xl sm:text-2xl font-semibold mb-4">Edit Transaction</h3>
-            <div className="space-y-4">
+      {/* Transactions List */}
+      <div className="card p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4">Recent Transactions</h2>
+        <div className="space-y-3">
+          {transactions.map((transaction) => (
+            <div
+              key={transaction.id}
+              className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+              onClick={() => {
+                setEditingTransaction(transaction);
+                setIsEditModalOpen(true);
+              }}
+            >
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <input
-                  type="text"
-                  value={editingTransaction.description}
-                  onChange={(e) =>
-                    setEditingTransaction((prev) => ({
-                      ...prev!,
-                      description: e.target.value,
-                    }))
-                  }
-                  className="input w-full"
-                />
+                <p className="font-medium">{transaction.description}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {transaction.category} • {new Date(transaction.date).toLocaleDateString()}
+                </p>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Amount</label>
-                <input
-                  type="number"
-                  value={editingTransaction.amount}
-                  onChange={(e) =>
-                    setEditingTransaction((prev) => ({
-                      ...prev!,
-                      amount: parseFloat(e.target.value),
-                    }))
-                  }
-                  className="input w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
-                <input
-                  type="text"
-                  value={editingTransaction.category}
-                  onChange={(e) =>
-                    setEditingTransaction((prev) => ({
-                      ...prev!,
-                      category: e.target.value,
-                    }))
-                  }
-                  className="input w-full"
-                />
-              </div>
-
-              <div className="flex justify-between gap-4 mt-6">
+              <div className="flex items-center gap-4">
+                <div className={`font-semibold ${
+                  transaction.type === 'income' 
+                    ? 'text-green-600 dark:text-green-400' 
+                    : 'text-red-600 dark:text-red-400'
+                }`}>
+                  {transaction.type === 'income' ? '+' : '-'}
+                  {formatAmount(transaction.amount, transaction.currency)}
+                </div>
                 <button
-                  onClick={closeEditModal}
-                  className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteTransaction(transaction.id);
+                  }}
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleEditTransaction}
-                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Save
+                  Delete
                 </button>
               </div>
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

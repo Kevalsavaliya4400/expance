@@ -6,7 +6,8 @@ import { useAuth } from './AuthContext';
 interface CurrencyContextType {
   currency: string;
   setCurrency: (currency: string) => Promise<void>;
-  formatAmount: (amount: number) => string;
+  formatAmount: (amount: number, fromCurrency?: string) => string;
+  convertAmount: (amount: number, fromCurrency: string, toCurrency: string) => number;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | null>(null);
@@ -19,28 +20,17 @@ export function useCurrency() {
   return context;
 }
 
-const currencySymbols: { [key: string]: string } = {
-  USD: '$',
-  EUR: '€',
-  GBP: '£',
-  JPY: '¥',
-  AUD: 'A$',
-  CAD: 'C$',
-  CHF: 'Fr',
-  CNY: '¥',
-  INR: '₹',
-};
-
+// Exchange rates relative to USD (1 USD = X currency)
 const exchangeRates: { [key: string]: number } = {
   USD: 1,
-  EUR: 0.85,
-  GBP: 0.73,
-  JPY: 110.42,
-  AUD: 1.35,
-  CAD: 1.25,
-  CHF: 0.92,
-  CNY: 6.45,
-  INR: 74.5,
+  EUR: 0.92,
+  GBP: 0.79,
+  JPY: 149.42,
+  AUD: 1.52,
+  CAD: 1.35,
+  CHF: 0.88,
+  CNY: 7.19,
+  INR: 83.12,
 };
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
@@ -84,20 +74,42 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const formatAmount = (amount: number) => {
-    const rate = exchangeRates[currency] || 1;
-    const convertedAmount = amount * rate;
+  // Convert amount between currencies
+  const convertAmount = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    // If currencies are the same, no conversion needed
+    if (fromCurrency === toCurrency) return amount;
+
+    // Convert to USD first (base currency)
+    const amountInUSD = amount / exchangeRates[fromCurrency];
+    // Then convert from USD to target currency
+    return amountInUSD * exchangeRates[toCurrency];
+  };
+
+  // Format amount with proper currency symbol and conversion
+  const formatAmount = (amount: number, fromCurrency?: string) => {
+    let finalAmount = amount;
     
-    return new Intl.NumberFormat('en-US', {
+    // If a source currency is provided and it's different from the target currency,
+    // convert the amount
+    if (fromCurrency && fromCurrency !== currency) {
+      finalAmount = convertAmount(amount, fromCurrency, currency);
+    }
+
+    return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(convertedAmount);
+    }).format(finalAmount);
   };
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, formatAmount }}>
+    <CurrencyContext.Provider value={{ 
+      currency, 
+      setCurrency, 
+      formatAmount,
+      convertAmount 
+    }}>
       {children}
     </CurrencyContext.Provider>
   );
