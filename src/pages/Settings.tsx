@@ -1,14 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, DollarSign, Mail, Shield } from 'lucide-react';
+import { useCurrency } from '../contexts/CurrencyContext';
+import toast from 'react-hot-toast';
+
+const currencies = [
+  { code: 'USD', name: 'US Dollar' },
+  { code: 'EUR', name: 'Euro' },
+  { code: 'GBP', name: 'British Pound' },
+  { code: 'JPY', name: 'Japanese Yen' },
+  { code: 'AUD', name: 'Australian Dollar' },
+  { code: 'CAD', name: 'Canadian Dollar' },
+  { code: 'CHF', name: 'Swiss Franc' },
+  { code: 'CNY', name: 'Chinese Yuan' },
+  { code: 'INR', name: 'Indian Rupee' },
+];
 
 export default function Settings() {
-  const [currency, setCurrency] = useState('USD');
+  const { currency, setCurrency } = useCurrency();
   const [notifications, setNotifications] = useState({
     email: true,
     push: false,
     weekly: true,
     monthly: true
   });
+  const [isChangingCurrency, setIsChangingCurrency] = useState(false);
+
+  const handleCurrencyChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    try {
+      setIsChangingCurrency(true);
+      await setCurrency(e.target.value);
+      toast.success('Currency updated successfully');
+    } catch (error) {
+      toast.error('Failed to update currency');
+    } finally {
+      setIsChangingCurrency(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -22,18 +49,29 @@ export default function Settings() {
             <label htmlFor="currency" className="block text-sm font-medium mb-2">
               Default Currency
             </label>
-            <select
-              id="currency"
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="input"
-            >
-              <option value="USD">USD - US Dollar</option>
-              <option value="EUR">EUR - Euro</option>
-              <option value="GBP">GBP - British Pound</option>
-              <option value="JPY">JPY - Japanese Yen</option>
-              <option value="AUD">AUD - Australian Dollar</option>
-            </select>
+            <div className="relative">
+              <select
+                id="currency"
+                value={currency}
+                onChange={handleCurrencyChange}
+                disabled={isChangingCurrency}
+                className="input pr-10 appearance-none"
+              >
+                {currencies.map(({ code, name }) => (
+                  <option key={code} value={code}>
+                    {code} - {name}
+                  </option>
+                ))}
+              </select>
+              {isChangingCurrency && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+                </div>
+              )}
+            </div>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              This will update the currency display across all your transactions
+            </p>
           </div>
         </div>
       </div>

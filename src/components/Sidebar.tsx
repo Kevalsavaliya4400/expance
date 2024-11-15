@@ -7,10 +7,15 @@ import {
   PiggyBank,
   ChevronLeft,
   ChevronRight,
+  X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function Sidebar() {
+interface SidebarProps {
+  onCloseMobile?: () => void;
+}
+
+export default function Sidebar({ onCloseMobile }: SidebarProps) {
   const { logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -22,7 +27,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`transition-all duration-300 ease-in-out ${
+      className={`h-screen transition-all duration-300 ease-in-out ${
         isSidebarOpen ? 'w-64' : 'w-20'
       } border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800`}
     >
@@ -33,22 +38,35 @@ export default function Sidebar() {
             <span className="font-bold text-xl">ExpenseTracker</span>
           )}
         </div>
-        <button
-          onClick={() => setIsSidebarOpen((prev) => !prev)}
-          className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-        >
-          {isSidebarOpen ? (
-            <ChevronLeft className="w-6 h-6" />
-          ) : (
-            <ChevronRight className="w-6 h-6" />
+        <div className="flex items-center gap-2">
+          {/* Mobile close button */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="lg:hidden text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            >
+              <X className="w-6 h-6" />
+            </button>
           )}
-        </button>
+          {/* Desktop collapse button */}
+          <button
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+            className="hidden lg:block text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          >
+            {isSidebarOpen ? (
+              <ChevronLeft className="w-6 h-6" />
+            ) : (
+              <ChevronRight className="w-6 h-6" />
+            )}
+          </button>
+        </div>
       </div>
       <nav className="p-4 flex flex-col gap-2">
         {links.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
+            onClick={onCloseMobile}
             className={({ isActive }) =>
               `flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 isActive

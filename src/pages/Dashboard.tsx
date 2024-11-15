@@ -4,13 +4,13 @@ import {
   query,
   orderBy,
   onSnapshot,
-  addDoc,
   doc,
   updateDoc,
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import {
   BarChart,
   Bar,
@@ -21,6 +21,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Transaction {
   id: string;
@@ -35,19 +36,10 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { currentUser } = useAuth();
-  const [newTransaction, setNewTransaction] = useState<Transaction>({
-    id: '',
-    amount: 0,
-    type: 'income',
-    category: '',
-    date: '',
-    description: '',
-  });
-
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] =
-    useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const { currentUser } = useAuth();
+  const { formatAmount } = useCurrency();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -67,7 +59,7 @@ export default function Dashboard() {
 
         setTransactions(transactionData);
         setLoading(false);
-        setError(null); // Reset error on success
+        setError(null);
       },
       (err) => {
         setError('Failed to load transactions');
@@ -75,7 +67,7 @@ export default function Dashboard() {
       }
     );
 
-    return () => unsubscribe(); // Cleanup listener on component unmount
+    return () => unsubscribe();
   }, [currentUser]);
 
   const totalIncome = transactions
@@ -87,6 +79,30 @@ export default function Dashboard() {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const balance = totalIncome - totalExpenses;
+
+  const stats = [
+    {
+      title: 'Total Balance',
+      value: formatAmount(balance),
+      icon: DollarSign,
+      trend: balance >= 0 ? 'up' : 'down',
+      color: balance >= 0 ? 'green' : 'red',
+    },
+    {
+      title: 'Total Income',
+      value: formatAmount(totalIncome),
+      icon: TrendingUp,
+      trend: 'up',
+      color: 'green',
+    },
+    {
+      title: 'Total Expenses',
+      value: formatAmount(totalExpenses),
+      icon: TrendingDown,
+      trend: 'down',
+      color: 'red',
+    },
+  ];
 
   const incomeData = transactions
     .filter((t) => t.type === 'income')
@@ -112,65 +128,27 @@ export default function Dashboard() {
       return acc;
     }, [] as { name: string; amount: number }[]);
 
-  const stats = [
-    {
-      title: 'Total Balance',
-      value: `$${balance.toFixed(2)}`,
-      icon: DollarSign,
-      trend: balance >= 0 ? 'up' : 'down',
-      color: balance >= 0 ? 'green' : 'red',
-    },
-    {
-      title: 'Total Income',
-      value: `$${totalIncome.toFixed(2)}`,
-      icon: TrendingUp,
-      trend: 'up',
-      color: 'green',
-    },
-    {
-      title: 'Total Expenses',
-      value: `$${totalExpenses.toFixed(2)}`,
-      icon: TrendingDown,
-      trend: 'down',
-      color: 'red',
-    },
-  ];
-
-  const handleAddTransaction = async () => {
-    try {
-      const transaction = { ...newTransaction, date: new Date().toISOString() };
-      await addDoc(
-        collection(db, 'users', currentUser.uid, 'transactions'),
-        transaction
-      );
-      setNewTransaction({
-        id: '',
-        amount: 0,
-        type: 'income',
-        category: '',
-        date: '',
-        description: '',
-      });
-    } catch (err) {
-      console.error('Error adding transaction:', err);
-    }
-  };
-
   const handleEditTransaction = async () => {
-    if (editingTransaction) {
-      try {
-        const transactionRef = doc(
-          db,
-          'users',
-          currentUser.uid,
-          'transactions',
-          editingTransaction.id
-        );
-        await updateDoc(transactionRef, editingTransaction);
-        setIsEditModalOpen(false); // Close modal after saving
-      } catch (err) {
-        console.error('Error updating transaction:', err);
-      }
+    if (!editingTransaction) return;
+
+    try {
+      const transactionRef = doc(
+        db,
+        'users',
+        currentUser.uid,
+        'transactions',
+        editingTransaction.id
+      );
+      await updateDoc(transactionRef, {
+        description: editingTransaction.description,
+        amount: editingTransaction.amount,
+        category: editingTransaction.category,
+      });
+      setIsEditModalOpen(false);
+      toast.success('Transaction updated successfully');
+    } catch (err) {
+      console.error('Error updating transaction:', err);
+      toast.error('Failed to update transaction');
     }
   };
 
@@ -184,8 +162,10 @@ export default function Dashboard() {
         transactionId
       );
       await deleteDoc(transactionRef);
+      toast.success('Transaction deleted successfully');
     } catch (err) {
       console.error('Error deleting transaction:', err);
+      toast.error('Failed to delete transaction');
     }
   };
 
@@ -216,16 +196,17 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {stats.map((stat) => (
-          <div key={stat.title} className="card">
+          <div key={stat.title} className="card p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   {stat.title}
                 </p>
-                <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
+                <h3 className="text-xl sm:text-2xl font-bold mt-1">{stat.value}</h3>
               </div>
               <div
                 className={`p-3 rounded-full ${
@@ -241,37 +222,42 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Recent Transactions</h2>
-          <div className="space-y-4 max-h-96 overflow-auto">
+      {/* Charts and Transactions Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Recent Transactions */}
+        <div className="card p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Recent Transactions</h2>
+          <div className="space-y-3 max-h-[calc(100vh-20rem)] overflow-auto">
             {transactions.slice(0, 10).map((transaction) => (
               <div
                 key={transaction.id}
-                className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer"
-                onClick={() => openEditModal(transaction)} // Open modal on click
+                className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                onClick={() => openEditModal(transaction)}
               >
-                <div>
-                  <p className="font-medium">{transaction.description}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{transaction.description}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
                     {transaction.category} •{' '}
                     {new Date(transaction.date).toLocaleDateString()}
                   </p>
                 </div>
-                <span
-                  className={`font-semibold ${
-                    transaction.type === 'income'
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}
-                >
-                  {transaction.type === 'income' ? '+' : '-'}$
-                  {transaction.amount.toFixed(2)}
-                </span>
-                <div className="flex space-x-2">
+                <div className="flex items-center gap-3 ml-4">
+                  <span
+                    className={`font-semibold whitespace-nowrap ${
+                      transaction.type === 'income'
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {transaction.type === 'income' ? '+' : '-'}
+                    {formatAmount(transaction.amount)}
+                  </span>
                   <button
-                    onClick={() => handleDeleteTransaction(transaction.id)}
-                    className="text-red-600 dark:text-red-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteTransaction(transaction.id);
+                    }}
+                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                   >
                     Delete
                   </button>
@@ -281,57 +267,72 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Income by Category</h2>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={incomeData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  className="dark:opacity-20"
-                />
-                <XAxis
-                  dataKey="name"
-                  className="text-gray-600 dark:text-gray-400"
-                />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#4caf50" />
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Charts */}
+        <div className="space-y-4 sm:space-y-6">
+          <div className="card p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4">Income by Category</h2>
+            <div className="h-64 sm:h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={incomeData}>
+                  <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
+                  <XAxis
+                    dataKey="name"
+                    className="text-gray-600 dark:text-gray-400"
+                    tick={{ fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis
+                    width={60}
+                    tickFormatter={(value) => formatAmount(value).replace(/[^0-9.]/g, '')}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [formatAmount(value), 'Amount']}
+                  />
+                  <Bar dataKey="amount" fill="#4caf50" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
 
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Expenses by Category</h2>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={expenseData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  className="dark:opacity-20"
-                />
-                <XAxis
-                  dataKey="name"
-                  className="text-gray-600 dark:text-gray-400"
-                />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#f44336" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="card p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4">Expenses by Category</h2>
+            <div className="h-64 sm:h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={expenseData}>
+                  <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
+                  <XAxis
+                    dataKey="name"
+                    className="text-gray-600 dark:text-gray-400"
+                    tick={{ fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis
+                    width={60}
+                    tickFormatter={(value) => formatAmount(value).replace(/[^0-9.]/g, '')}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [formatAmount(value), 'Amount']}
+                  />
+                  <Bar dataKey="amount" fill="#f44336" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Edit Modal */}
       {isEditModalOpen && editingTransaction && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-500 bg-opacity-50 z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-96">
-            <h3 className="text-2xl font-semibold mb-4">Edit Transaction</h3>
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-500 bg-opacity-50 z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h3 className="text-xl sm:text-2xl font-semibold mb-4">Edit Transaction</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm">Description</label>
+                <label className="block text-sm font-medium mb-1">Description</label>
                 <input
                   type="text"
                   value={editingTransaction.description}
@@ -341,12 +342,12 @@ export default function Dashboard() {
                       description: e.target.value,
                     }))
                   }
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="input w-full"
                 />
               </div>
 
               <div>
-                <label className="block text-sm">Amount</label>
+                <label className="block text-sm font-medium mb-1">Amount</label>
                 <input
                   type="number"
                   value={editingTransaction.amount}
@@ -356,12 +357,12 @@ export default function Dashboard() {
                       amount: parseFloat(e.target.value),
                     }))
                   }
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="input w-full"
                 />
               </div>
 
               <div>
-                <label className="block text-sm">Category</label>
+                <label className="block text-sm font-medium mb-1">Category</label>
                 <input
                   type="text"
                   value={editingTransaction.category}
@@ -371,20 +372,20 @@ export default function Dashboard() {
                       category: e.target.value,
                     }))
                   }
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="input w-full"
                 />
               </div>
 
-              <div className="flex justify-between mt-4">
+              <div className="flex justify-between gap-4 mt-6">
                 <button
                   onClick={closeEditModal}
-                  className="py-2 px-4 bg-gray-200 rounded-md"
+                  className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleEditTransaction}
-                  className="py-2 px-4 bg-blue-600 text-white rounded-md"
+                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
                   Save
                 </button>

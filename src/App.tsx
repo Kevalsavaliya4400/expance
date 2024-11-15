@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
@@ -19,30 +20,32 @@ function App() {
       <BrowserRouter>
         <ThemeProvider>
           <AuthProvider>
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                className: 'dark:bg-gray-800 dark:text-white',
-              }}
-            />
-            <Routes>
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route
-                path="/"
-                element={
-                  <PrivateRoute>
-                    <Layout />
-                  </PrivateRoute>
-                }
-              >
-                <Route index element={<Dashboard />} />
-                <Route path="calendar" element={<Calendar />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="profile" element={<Profile />} />
-              </Route>
-            </Routes>
+            <CurrencyProvider>
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  className: 'dark:bg-gray-800 dark:text-white',
+                }}
+              />
+              <Routes>
+                <Route path="/signin" element={<SignIn />} />
+                <Route path="/signup" element={<SignUp />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route
+                  path="/"
+                  element={
+                    <PrivateRoute>
+                      <Layout />
+                    </PrivateRoute>
+                  }
+                >
+                  <Route index element={<Dashboard />} />
+                  <Route path="calendar" element={<Calendar />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="profile" element={<Profile />} />
+                </Route>
+              </Routes>
+            </CurrencyProvider>
           </AuthProvider>
         </ThemeProvider>
       </BrowserRouter>

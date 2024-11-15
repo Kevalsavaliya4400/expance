@@ -10,18 +10,18 @@ export default function Navbar({ onAddExpense }: NavbarProps) {
   const { isDark, toggleTheme } = useTheme();
 
   return (
-    <nav className="sticky top-0 z-50 h-16 bg-white dark:bg-gray-800 bg-opacity-40 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-6 flex items-center justify-between shadow-md transition-all duration-300">
-      <h1 className="text-xl font-semibold text-gray-800 dark:text-white">
+    <nav className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-800 bg-opacity-40 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 flex items-center justify-between shadow-md transition-all duration-300">
+      <h1 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">
         Expense Tracker
       </h1>
-      <div className="flex items-center gap-4">
-        {/* Add Expense Button */}
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Add Expense Button - Hide text on mobile */}
         <button
           onClick={onAddExpense}
-          className="btn btn-primary flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg px-4 py-2 transition duration-200"
+          className="btn btn-primary flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg px-3 sm:px-4 py-2 transition duration-200"
         >
           <Plus className="w-4 h-4" />
-          Add Expense
+          <span className="hidden sm:inline">Add Expense</span>
         </button>
 
         {/* Notifications Button */}
