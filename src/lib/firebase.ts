@@ -30,15 +30,37 @@ isSupported().then(supported => {
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // User profile and settings
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isSignedIn() && isOwner(userId);
       
+      // Transactions collection
       match /transactions/{transactionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && isOwner(userId);
       }
       
+      // Settings collection
       match /settings/{settingId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isSignedIn() && isOwner(userId);
+      }
+      
+      // Bills collection
+      match /bills/{billId} {
+        allow read, write: if isSignedIn() && isOwner(userId);
+      }
+      
+      // Payment methods collection
+      match /payment/{document=**} {
+        allow read, write: if isSignedIn() && isOwner(userId);
       }
     }
   }
@@ -49,26 +71,40 @@ export { analytics };
 
 // Helper functions for Firestore operations
 export const getUserTransactions = async (userId: string, type?: 'income' | 'expense') => {
-  const transactionsRef = collection(db, 'users', userId, 'transactions');
-  let q = query(
-    transactionsRef,
-    orderBy('date', 'desc'),
-    limit(50)
-  );
+  if (!userId) return [];
+  
+  try {
+    const transactionsRef = collection(db, 'users', userId, 'transactions');
+    let q = query(
+      transactionsRef,
+      orderBy('date', 'desc'),
+      limit(50)
+    );
 
-  if (type) {
-    q = query(q, where('type', '==', type));
+    if (type) {
+      q = query(q, where('type', '==', type));
+    }
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
   }
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
 };
 
 export const getUserSettings = async (userId: string) => {
-  const settingsRef = collection(db, 'users', userId, 'settings');
-  const snapshot = await getDocs(settingsRef);
-  return snapshot.docs[0]?.data() || {};
+  if (!userId) return {};
+  
+  try {
+    const settingsRef = collection(db, 'users', userId, 'settings');
+    const snapshot = await getDocs(settingsRef);
+    return snapshot.docs[0]?.data() || {};
+  } catch (error) {
+    console.error('Error fetching user settings:', error);
+    return {};
+  }
 };

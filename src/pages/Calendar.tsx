@@ -3,50 +3,102 @@ import { format } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import { Plus } from 'lucide-react';
 import 'react-day-picker/dist/style.css';
-import { db } from '../lib/firebase'; // Ensure this is imported correctly
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { collection, query, onSnapshot, orderBy, doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
-import AddExpenseForm from './AddExpenseForm'; // Correct path to AddExpenseForm component
+import AddExpenseForm from './AddExpenseForm';
 
 export default function Calendar() {
-  const [selected, setSelected] = useState<Date | undefined>(new Date()); // Set today's date as default
+  const [selected, setSelected] = useState<Date | undefined>(new Date());
   const [transactions, setTransactions] = useState<any[]>([]);
   const [upcomingBills, setUpcomingBills] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { currentUser } = useAuth();
 
   useEffect(() => {
     if (!currentUser) return;
 
-    // Fetch Transactions from Firebase
-    const transactionsQuery = query(
-      collection(db, 'users', currentUser.uid, 'transactions'),
-      orderBy('date', 'desc')
-    );
+    setIsLoading(true);
+    setError(null);
 
-    const unsubscribeTransactions = onSnapshot(
-      transactionsQuery,
-      (querySnapshot) => {
-        const transactionsData = querySnapshot.docs.map((doc) => doc.data());
-        setTransactions(transactionsData);
-      }
-    );
+    try {
+      // Create user document if it doesn't exist
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      setDoc(userDocRef, {
+        email: currentUser.email,
+        lastUpdated: new Date()
+      }, { merge: true });
 
-    // Fetch Upcoming Bills from Firebase
-    const billsQuery = query(
-      collection(db, 'users', currentUser.uid, 'bills'),
-      orderBy('dueDate', 'asc')
-    );
+      // Fetch Transactions
+      const transactionsQuery = query(
+        collection(db, 'users', currentUser.uid, 'transactions'),
+        orderBy('date', 'desc')
+      );
 
-    const unsubscribeBills = onSnapshot(billsQuery, (querySnapshot) => {
-      const billsData = querySnapshot.docs.map((doc) => doc.data());
-      setUpcomingBills(billsData);
-    });
+      const unsubscribeTransactions = onSnapshot(
+        transactionsQuery,
+        (querySnapshot) => {
+          const transactionsData = querySnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setTransactions(transactionsData);
+          setIsLoading(false);
+        },
+        (error) => {
+          console.error('Error fetching transactions:', error);
+          setError('Failed to load transactions');
+          setIsLoading(false);
+        }
+      );
 
-    return () => {
-      unsubscribeTransactions();
-      unsubscribeBills();
-    };
+      // Fetch Bills
+      const billsQuery = query(
+        collection(db, 'users', currentUser.uid, 'bills'),
+        orderBy('dueDate', 'asc')
+      );
+
+      const unsubscribeBills = onSnapshot(
+        billsQuery,
+        (querySnapshot) => {
+          const billsData = querySnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setUpcomingBills(billsData);
+        },
+        (error) => {
+          console.error('Error fetching bills:', error);
+        }
+      );
+
+      return () => {
+        unsubscribeTransactions();
+        unsubscribeBills();
+      };
+    } catch (error) {
+      console.error('Error setting up listeners:', error);
+      setError('Failed to initialize data');
+      setIsLoading(false);
+    }
   }, [currentUser]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center p-4">
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
+  }
 
   const footer = selected ? (
     <div className="mt-4 text-sm">
@@ -59,9 +111,9 @@ export default function Calendar() {
             (transaction) =>
               format(new Date(transaction.date), 'P') === format(selected, 'P')
           )
-          .map((transaction, index) => (
+          .map((transaction) => (
             <li
-              key={index}
+              key={transaction.id}
               className={`flex items-center justify-between ${
                 transaction.type === 'income'
                   ? 'text-green-500'
@@ -79,9 +131,9 @@ export default function Calendar() {
             (bill) =>
               format(new Date(bill.dueDate), 'P') === format(selected, 'P')
           )
-          .map((bill, index) => (
+          .map((bill) => (
             <li
-              key={index}
+              key={bill.id}
               className="flex items-center justify-between py-2 px-3 rounded-lg"
             >
               <span>{bill.title}</span>
@@ -92,18 +144,16 @@ export default function Calendar() {
     </div>
   ) : (
     <div className="text-center text-sm text-gray-500">
-      No transactions or bills for today.
+      Select a date to view transactions
     </div>
   );
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-      <div className="card md:col-span-2 p-6 bg-opacity-40 backdrop-blur-xl rounded-xl shadow-lg">
+      <div className="card md:col-span-2 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-            Expense Calendar
-          </h2>
-          <button className="btn btn-primary flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition">
+          <h2 className="text-xl font-semibold">Expense Calendar</h2>
+          <button className="btn btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Add Transaction
           </button>
@@ -116,39 +166,39 @@ export default function Calendar() {
             footer={footer}
             className="p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-xl"
             classNames={{
-              day_selected:
-                'bg-blue-600 text-white border-2 border-white rounded-lg', // Selected day style (blue with white text and white border)
-              day_today:
-                'font-bold text-white bg-blue-600 border-2 border-blue-500 rounded-lg', // Today's date style (bold, white text, blue background)
+              day_selected: 'bg-primary-600 text-white hover:bg-primary-700',
+              day_today: 'font-bold text-primary-600 dark:text-primary-400',
             }}
           />
         </div>
       </div>
 
       <div className="space-y-6">
-        <div className="card p-6 bg-opacity-40 backdrop-blur-xl rounded-xl shadow-lg">
-          <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">
-            Upcoming Bills
-          </h3>
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold mb-4">Upcoming Bills</h3>
           <div className="space-y-4">
-            {upcomingBills.map((bill) => (
-              <div
-                key={bill.title}
-                className="flex items-center justify-between bg-white dark:bg-gray-700 py-3 px-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition"
-              >
-                <div>
-                  <p className="font-medium text-gray-800 dark:text-gray-100">
-                    {bill.title}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Due {format(new Date(bill.dueDate), 'MMM d')}
-                  </p>
+            {upcomingBills.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                No upcoming bills
+              </p>
+            ) : (
+              upcomingBills.map((bill) => (
+                <div
+                  key={bill.id}
+                  className="flex items-center justify-between bg-white dark:bg-gray-700 py-3 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition"
+                >
+                  <div>
+                    <p className="font-medium">{bill.title}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Due {format(new Date(bill.dueDate), 'MMM d')}
+                    </p>
+                  </div>
+                  <span className="font-semibold">
+                    ${bill.amount.toFixed(2)}
+                  </span>
                 </div>
-                <span className="font-semibold text-gray-800 dark:text-gray-100">
-                  ${bill.amount}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
