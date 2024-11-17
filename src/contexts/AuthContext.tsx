@@ -9,9 +9,10 @@ import {
   sendEmailVerification,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { db, auth } from '../lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { db, auth, checkBillNotifications } from '../lib/firebase';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { playNotificationSound } from '../lib/playNotificationSound';
 
 interface UserProfile {
   email: string;
@@ -55,11 +56,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check for pending notifications
+  const checkPendingNotifications = async (userId: string) => {
+    try {
+      // Check bill notifications first
+      await checkBillNotifications(userId);
+
+      // Get unread notifications
+      const notificationsRef = collection(db, 'users', userId, 'notifications');
+      const q = query(
+        notificationsRef,
+        where('read', '==', false),
+        orderBy('createdAt', 'desc'),
+        limit(5)
+      );
+
+      const snapshot = await getDocs(q);
+      const unreadNotifications = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // If there are unread notifications, show them in a popup
+      if (unreadNotifications.length > 0) {
+        playNotificationSound();
+        
+        // Show the most recent notification as a toast
+        const mostRecent = unreadNotifications[0];
+        toast(
+          <div className="space-y-2">
+            <p className="font-medium">{mostRecent.title}</p>
+            <p className="text-sm">{mostRecent.message}</p>
+            {unreadNotifications.length > 1 && (
+              <p className="text-sm text-gray-500">
+                +{unreadNotifications.length - 1} more notifications
+              </p>
+            )}
+          </div>,
+          {
+            duration: 5000,
+            icon: mostRecent.type === 'warning' ? '⚠️' : 
+                  mostRecent.type === 'error' ? '🚨' : 
+                  mostRecent.type === 'success' ? '✅' : 'ℹ️'
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error checking notifications:', error);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
         await fetchUserProfile(user.uid);
+        // Check notifications immediately after login
+        await checkPendingNotifications(user.uid);
       } else {
         setUserProfile(null);
       }
@@ -88,6 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Please verify your email before signing in.');
       }
       await fetchUserProfile(result.user.uid);
+      // Check notifications immediately after successful login
+      await checkPendingNotifications(result.user.uid);
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential') {
         throw new Error('Invalid email or password.');

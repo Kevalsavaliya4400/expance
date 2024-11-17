@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, X, Check, Clock } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
+import { playNotificationSound } from '../lib/playNotificationSound';
 
 interface Notification {
   id: string;
@@ -11,15 +13,21 @@ interface Notification {
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
   read: boolean;
-  createdAt: Date;
+  createdAt: Timestamp | Date;
+  billId?: string;
+  dueDate?: Timestamp | Date;
+  requiresConfirmation?: boolean;
 }
 
 export default function NotificationsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
   const { currentUser } = useAuth();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const previousCount = useRef(0);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -39,18 +47,44 @@ export default function NotificationsDropdown() {
     const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(10));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-      })) as Notification[];
+      const notifs = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : data.createdAt,
+          dueDate: data.dueDate instanceof Timestamp ? data.dueDate.toDate() : data.dueDate,
+        };
+      });
 
+      const newUnreadCount = notifs.filter(n => !n.read).length;
+      
+      // Play sound if there are new notifications
+      if (newUnreadCount > previousCount.current) {
+        playNotificationSound();
+      }
+      
+      previousCount.current = newUnreadCount;
       setNotifications(notifs);
-      setUnreadCount(notifs.filter(n => !n.read).length);
+      setUnreadCount(newUnreadCount);
     });
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!currentUser) return;
+
+    // Mark as read
+    await markAsRead(notification.id);
+
+    // If it's a bill notification, navigate to bills page and highlight the bill
+    if (notification.billId) {
+      setHighlightedBillId(notification.billId);
+      navigate('/bills');
+      setIsOpen(false);
+    }
+  };
 
   const markAsRead = async (notificationId: string) => {
     if (!currentUser) return;
@@ -83,6 +117,11 @@ export default function NotificationsDropdown() {
       default:
         return <Clock className="w-5 h-5 text-blue-500" />;
     }
+  };
+
+  const getNotificationDate = (date: Date | Timestamp) => {
+    const dateObj = date instanceof Timestamp ? date.toDate() : date;
+    return formatDistanceToNow(dateObj, { addSuffix: true });
   };
 
   return (
@@ -125,7 +164,7 @@ export default function NotificationsDropdown() {
                   className={`p-4 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
                     !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start gap-3">
                     {getNotificationIcon(notification.type)}
@@ -135,7 +174,7 @@ export default function NotificationsDropdown() {
                         {notification.message}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
+                        {getNotificationDate(notification.createdAt)}
                       </p>
                     </div>
                   </div>

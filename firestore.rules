@@ -15,46 +15,104 @@ service cloud.firestore {
     }
 
     function isValidDate(date) {
-      return date is timestamp;
+      return date is timestamp || date is string;
     }
 
-    function isValidString(value) {
-      return value is string && value.size() > 0 && value.size() <= 500;
+    function isValidTransaction(data) {
+      return isValidAmount(data.amount) 
+        && isValidDate(data.date)
+        && data.type in ['income', 'expense']
+        && data.userId == request.auth.uid;
     }
 
-    // Rules for users collection
+    function isValidBill(data) {
+      return isValidAmount(data.amount)
+        && isValidDate(data.dueDate)
+        && data.status in ['paid', 'pending', 'overdue']
+        && data.userId == request.auth.uid;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['title', 'message', 'createdAt', 'read', 'type'])
+        && data.type in ['info', 'success', 'warning', 'error'];
+    }
+
+    // User document rules
     match /users/{userId} {
-      // Allow users to read and write their own documents
-      allow read, write: if isSignedIn() && isOwner(userId);
+      // Allow creation of user document during signup
+      allow create: if isSignedIn() 
+        && isOwner(userId)
+        && request.resource.data.keys().hasAll(['email', 'createdAt'])
+        && request.resource.data.email == request.auth.token.email;
+
+      // Allow users to read and update their own data
+      allow read, update: if isSignedIn() && isOwner(userId);
+      
+      // Prevent deletion of user documents
+      allow delete: if false;
 
       // Transactions subcollection
       match /transactions/{transactionId} {
-        allow create: if isSignedIn() && 
-                     isOwner(userId) && 
-                     request.resource.data.userId == userId;
+        allow create: if isSignedIn() 
+          && isOwner(userId)
+          && isValidTransaction(request.resource.data);
         
-        allow read: if isSignedIn() && isOwner(userId);
+        allow read, list: if isSignedIn() && isOwner(userId);
         
-        allow update: if isSignedIn() && 
-                     isOwner(userId) && 
-                     request.resource.data.userId == userId;
+        allow update: if isSignedIn() 
+          && isOwner(userId)
+          && isValidTransaction(request.resource.data);
+        
+        allow delete: if isSignedIn() && isOwner(userId);
+      }
+
+      // Bills subcollection
+      match /bills/{billId} {
+        allow create: if isSignedIn() 
+          && isOwner(userId)
+          && isValidBill(request.resource.data);
+        
+        allow read, list: if isSignedIn() && isOwner(userId);
+        
+        allow update: if isSignedIn() 
+          && isOwner(userId)
+          && (
+            isValidBill(request.resource.data) ||
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+             request.resource.data.status in ['paid', 'pending', 'overdue'])
+          );
+        
+        allow delete: if isSignedIn() && isOwner(userId);
+      }
+
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow create: if isSignedIn() 
+          && isOwner(userId)
+          && isValidNotification(request.resource.data);
+        
+        allow read, list: if isSignedIn() && isOwner(userId);
+        
+        allow update: if isSignedIn() 
+          && isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
         
         allow delete: if isSignedIn() && isOwner(userId);
       }
 
       // Settings subcollection
       match /settings/{settingId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
-      }
-
-      // Bills subcollection
-      match /bills/{billId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
-      }
-
-      // Notifications subcollection
-      match /notifications/{notificationId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn() 
+          && isOwner(userId)
+          && request.resource.data.keys().hasAny(['currency', 'theme', 'notifications']);
+        
+        allow read: if isSignedIn() && isOwner(userId);
+        
+        allow update: if isSignedIn() 
+          && isOwner(userId)
+          && request.resource.data.keys().hasAny(['currency', 'theme', 'notifications']);
+        
+        allow delete: if false;
       }
     }
   }
