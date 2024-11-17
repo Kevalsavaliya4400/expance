@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, collection, getDocs, query, where, orderBy, limit, Timestamp, addDoc, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where, orderBy, limit, Timestamp, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import toast from 'react-hot-toast';
 import { playNotificationSound } from './playNotificationSound';
@@ -35,63 +35,31 @@ interface Bill {
   status: 'paid' | 'pending' | 'overdue';
 }
 
-// Store notification timestamps in memory
-const notificationTimestamps = new Map<string, number>();
-
-// Helper function to check if a notification should be shown
-const shouldShowNotification = (billId: string, type: string): boolean => {
-  const key = `${billId}-${type}`;
-  const now = Date.now();
-  const lastShown = notificationTimestamps.get(key) || 0;
-  const minInterval = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
-
-  if (now - lastShown >= minInterval) {
-    notificationTimestamps.set(key, now);
-    return true;
-  }
-
-  return false;
-};
-
-// Helper function to check for existing notifications
-const hasExistingNotification = async (userId: string, billId: string, type: string): Promise<boolean> => {
-  const notificationsRef = collection(db, 'users', userId, 'notifications');
-  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-  
-  const q = query(
-    notificationsRef,
-    where('billId', '==', billId),
-    where('type', '==', type),
-    where('createdAt', '>=', twelveHoursAgo),
-    limit(1)
-  );
-
-  const snapshot = await getDocs(q);
-  return !snapshot.empty;
-};
+let lastNotificationTime: { [key: string]: number } = {};
 
 // Helper function to create bill notifications
 export const createBillNotification = async (userId: string, bill: Bill) => {
   try {
+    const notificationsRef = collection(db, 'users', userId, 'notifications');
     const dueDate = bill.dueDate instanceof Timestamp ? bill.dueDate.toDate() : new Date(bill.dueDate);
     const today = new Date();
     const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
 
+    // Check if we've shown a notification for this bill recently (within 12 hours)
+    const now = Date.now();
+    const lastTime = lastNotificationTime[bill.id] || 0;
+    if (now - lastTime < 12 * 60 * 60 * 1000) {
+      return;
+    }
+
     let notification = null;
-    let notificationType = '';
 
     // Create notification for bills due tomorrow
     if (daysDiff === 1 && bill.status === 'pending') {
-      notificationType = 'due-tomorrow';
-      if (await hasExistingNotification(userId, bill.id, notificationType)) {
-        return;
-      }
-
       notification = {
         title: 'Bill Due Tomorrow',
         message: `${bill.title} is due tomorrow (${bill.amount} ${bill.currency})`,
         type: 'warning' as const,
-        notificationType,
         read: false,
         createdAt: new Date(),
         billId: bill.id,
@@ -102,16 +70,10 @@ export const createBillNotification = async (userId: string, bill: Bill) => {
 
     // Create notification for bills due today
     else if (daysDiff === 0 && bill.status === 'pending') {
-      notificationType = 'due-today';
-      if (await hasExistingNotification(userId, bill.id, notificationType)) {
-        return;
-      }
-
       notification = {
         title: 'Bill Due Today',
         message: `${bill.title} is due today (${bill.amount} ${bill.currency})`,
         type: 'error' as const,
-        notificationType,
         read: false,
         createdAt: new Date(),
         billId: bill.id,
@@ -122,16 +84,10 @@ export const createBillNotification = async (userId: string, bill: Bill) => {
 
     // Create notification for overdue bills
     else if (daysDiff < 0 && bill.status === 'pending') {
-      notificationType = 'overdue';
-      if (await hasExistingNotification(userId, bill.id, notificationType)) {
-        return;
-      }
-
       notification = {
         title: 'Overdue Bill',
         message: `${bill.title} was due ${Math.abs(daysDiff)} day${Math.abs(daysDiff) === 1 ? '' : 's'} ago`,
         type: 'error' as const,
-        notificationType,
         read: false,
         createdAt: new Date(),
         billId: bill.id,
@@ -140,24 +96,17 @@ export const createBillNotification = async (userId: string, bill: Bill) => {
       };
     }
 
-    if (notification && shouldShowNotification(bill.id, notificationType)) {
-      const notificationsRef = collection(db, 'users', userId, 'notifications');
+    if (notification) {
       await addDoc(notificationsRef, notification);
+      lastNotificationTime[bill.id] = now;
       
       // Play notification sound
       playNotificationSound();
       
-      // Show toast notification
+      // Show only one toast notification
       toast(notification.message, {
         duration: 5000,
         icon: notification.type === 'warning' ? '⚠️' : '🚨'
-      });
-
-      // Update bill's last notification timestamp
-      const billRef = doc(db, 'users', userId, 'bills', bill.id);
-      await updateDoc(billRef, {
-        lastNotificationSent: new Date(),
-        lastNotificationType: notificationType
       });
     }
   } catch (error) {
