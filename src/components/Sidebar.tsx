@@ -47,77 +47,65 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
 
   return (
     <aside
-      className={`h-full flex flex-col bg-white dark:bg-gray-800 shadow-xl ${
+      className={`h-full flex flex-col glass-card ${
         isSidebarOpen ? 'w-64' : 'w-20'
       } transition-all duration-300 ease-in-out`}
     >
-      <div className="h-16 flex-shrink-0 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800">
+      <div className="h-16 flex-shrink-0 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <PiggyBank className={`w-8 h-8 text-primary-500 ${!isSidebarOpen && 'mx-auto'}`} />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center">
+            <PiggyBank className="w-6 h-6 text-white" />
+          </div>
           {isSidebarOpen && (
-            <span className="font-bold text-xl">ExpenseTracker</span>
+            <span className="font-bold text-xl gradient-text">Expance</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {/* Mobile close button */}
-          {isMobile && onCloseMobile && (
-            <button
-              onClick={onCloseMobile}
-              className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              aria-label="Close menu"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          )}
-          {/* Desktop collapse button */}
-          {!isMobile && (
-            <button
-              onClick={() => setIsSidebarOpen((prev) => !prev)}
-              className="hidden lg:block p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            >
-              {isSidebarOpen ? (
-                <ChevronLeft className="w-5 h-5" />
-              ) : (
-                <ChevronRight className="w-5 h-5" />
-              )}
-            </button>
-          )}
-        </div>
+        
+        {isMobile ? (
+          <button
+            onClick={onCloseMobile}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl"
+          >
+            {isSidebarOpen ? (
+              <ChevronLeft className="w-5 h-5" />
+            ) : (
+              <ChevronRight className="w-5 h-5" />
+            )}
+          </button>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <nav className="p-4 flex flex-col gap-2">
+      <div className="flex-1 overflow-y-auto px-3 py-6">
+        <nav className="space-y-2">
           {links.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               onClick={onCloseMobile}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`
+                `nav-item ${isActive ? 'nav-item-active' : 'nav-item-inactive'}`
               }
             >
               <Icon className={`w-5 h-5 ${!isSidebarOpen && 'mx-auto'}`} />
-              {isSidebarOpen && (
-                <span className="text-sm font-medium">{label}</span>
-              )}
+              {isSidebarOpen && <span>{label}</span>}
             </NavLink>
           ))}
         </nav>
       </div>
 
-      <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-3">
         <button
           onClick={logout}
-          className={`w-full rounded-lg transition-colors hover:bg-red-50 dark:hover:bg-red-900/20 ${
-            isSidebarOpen ? 'px-4 py-2 text-sm text-red-600 dark:text-red-400' : 'p-3'
-          }`}
+          className="nav-item text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full"
         >
-          <LogOut className={`w-5 h-5 ${isSidebarOpen ? 'inline mr-2' : 'mx-auto'} text-red-600 dark:text-red-400`} />
+          <LogOut className="w-5 h-5" />
           {isSidebarOpen && <span>Logout</span>}
         </button>
       </div>

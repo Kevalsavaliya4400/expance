@@ -18,19 +18,28 @@ service cloud.firestore {
       return date is timestamp;
     }
 
+    function isValidString(value) {
+      return value is string && value.size() > 0 && value.size() <= 500;
+    }
+
     // Rules for users collection
     match /users/{userId} {
-      // Allow creation of user document during signup
-      allow create: if isSignedIn() && isOwner(userId);
-      // Allow users to read and update their own data
-      allow read, update: if isSignedIn() && isOwner(userId);
-      // Prevent deletion
-      allow delete: if false;
+      // Allow users to read and write their own documents
+      allow read, write: if isSignedIn() && isOwner(userId);
 
       // Transactions subcollection
       match /transactions/{transactionId} {
-        allow create: if isSignedIn() && isOwner(userId);
-        allow read, list, update, delete: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn() && 
+                     isOwner(userId) && 
+                     request.resource.data.userId == userId;
+        
+        allow read: if isSignedIn() && isOwner(userId);
+        
+        allow update: if isSignedIn() && 
+                     isOwner(userId) && 
+                     request.resource.data.userId == userId;
+        
+        allow delete: if isSignedIn() && isOwner(userId);
       }
 
       // Settings subcollection
@@ -40,12 +49,11 @@ service cloud.firestore {
 
       // Bills subcollection
       match /bills/{billId} {
-        allow create: if isSignedIn() && isOwner(userId);
-        allow read, list, update, delete: if isSignedIn() && isOwner(userId);
+        allow read, write: if isSignedIn() && isOwner(userId);
       }
 
-      // Preferences subcollection
-      match /preferences/{preferenceId} {
+      // Notifications subcollection
+      match /notifications/{notificationId} {
         allow read, write: if isSignedIn() && isOwner(userId);
       }
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import { Plus } from 'lucide-react';
 import 'react-day-picker/dist/style.css';
@@ -41,7 +41,8 @@ export default function Calendar() {
         (querySnapshot) => {
           const transactionsData = querySnapshot.docs.map((doc) => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data(),
+            date: doc.data().date?.toDate?.() || new Date(doc.data().date)
           }));
           setTransactions(transactionsData);
           setIsLoading(false);
@@ -64,7 +65,8 @@ export default function Calendar() {
         (querySnapshot) => {
           const billsData = querySnapshot.docs.map((doc) => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data(),
+            dueDate: doc.data().dueDate?.toDate?.() || new Date(doc.data().dueDate)
           }));
           setUpcomingBills(billsData);
         },
@@ -109,7 +111,7 @@ export default function Calendar() {
         {transactions
           .filter(
             (transaction) =>
-              format(new Date(transaction.date), 'P') === format(selected, 'P')
+              format(transaction.date, 'P') === format(selected, 'P')
           )
           .map((transaction) => (
             <li
@@ -129,7 +131,7 @@ export default function Calendar() {
         {upcomingBills
           .filter(
             (bill) =>
-              format(new Date(bill.dueDate), 'P') === format(selected, 'P')
+              format(bill.dueDate, 'P') === format(selected, 'P')
           )
           .map((bill) => (
             <li
@@ -190,7 +192,7 @@ export default function Calendar() {
                   <div>
                     <p className="font-medium">{bill.title}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Due {format(new Date(bill.dueDate), 'MMM d')}
+                      Due {format(bill.dueDate, 'MMM d')}
                     </p>
                   </div>
                   <span className="font-semibold">

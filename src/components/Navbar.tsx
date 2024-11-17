@@ -11,17 +11,17 @@ interface NavbarProps {
 
 export default function Navbar({ onAddExpense, onMenuClick }: NavbarProps) {
   return (
-    <nav className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-800 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 flex items-center justify-between shadow-md transition-all duration-300">
+    <nav className="sticky top-0 z-30 h-16 glass-card flex items-center justify-between px-4 sm:px-6">
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl"
           aria-label="Open menu"
         >
           <Menu className="w-6 h-6" />
         </button>
         
-        <h1 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">
+        <h1 className="text-lg sm:text-xl font-display font-bold gradient-text">
           Expense Tracker
         </h1>
       </div>
@@ -29,7 +29,7 @@ export default function Navbar({ onAddExpense, onMenuClick }: NavbarProps) {
       <div className="flex items-center gap-2 sm:gap-4">
         <button
           onClick={onAddExpense}
-          className="btn btn-primary flex items-center gap-2 bg-primary-600 text-white hover:bg-primary-700 rounded-lg px-3 sm:px-4 py-2 transition duration-200 shadow-lg hover:shadow-xl"
+          className="btn btn-primary flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Add Expense</span>
