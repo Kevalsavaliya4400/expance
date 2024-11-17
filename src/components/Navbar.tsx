@@ -1,48 +1,45 @@
-import { Bell, Moon, Sun, Plus } from 'lucide-react';
+import { Plus, Menu } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import ProfileDropdown from './ProfileDropdown';
+import NotificationsDropdown from './NotificationsDropdown';
+import ThemeToggle from './ThemeToggle';
 
 interface NavbarProps {
   onAddExpense: () => void;
+  onMenuClick: () => void;
 }
 
-export default function Navbar({ onAddExpense }: NavbarProps) {
-  const { isDark, toggleTheme } = useTheme();
-
+export default function Navbar({ onAddExpense, onMenuClick }: NavbarProps) {
   return (
-    <nav className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-800 bg-opacity-40 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 flex items-center justify-between shadow-md transition-all duration-300">
-      <h1 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">
-        Expense Tracker
-      </h1>
+    <nav className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-800 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 flex items-center justify-between shadow-md transition-all duration-300">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        
+        <h1 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">
+          Expense Tracker
+        </h1>
+      </div>
+      
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Add Expense Button - Hide text on mobile */}
         <button
           onClick={onAddExpense}
-          className="btn btn-primary flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg px-3 sm:px-4 py-2 transition duration-200"
+          className="btn btn-primary flex items-center gap-2 bg-primary-600 text-white hover:bg-primary-700 rounded-lg px-3 sm:px-4 py-2 transition duration-200 shadow-lg hover:shadow-xl"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Add Expense</span>
         </button>
 
-        {/* Notifications Button */}
-        <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition duration-200">
-          <Bell className="w-5 h-5 text-gray-700 dark:text-white" />
-        </button>
-
-        {/* Theme Toggle Button */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition duration-200"
-        >
-          {isDark ? (
-            <Sun className="w-5 h-5 text-yellow-500" />
-          ) : (
-            <Moon className="w-5 h-5 text-gray-600" />
-          )}
-        </button>
-
-        {/* Profile Dropdown */}
-        <ProfileDropdown />
+        <div className="flex items-center gap-2">
+          <NotificationsDropdown />
+          <ThemeToggle />
+          <ProfileDropdown />
+        </div>
       </div>
     </nav>
   );

@@ -9,20 +9,34 @@ import {
   sendEmailVerification,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { db, auth } from '../lib/firebase'; // Import Firestore db
-import { doc, setDoc, getDoc } from 'firebase/firestore'; // Firestore functions for reading/writing data
+import { db, auth } from '../lib/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
+
+interface UserProfile {
+  email: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  securityQuestion: string;
+  securityAnswer: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface AuthContextType {
   currentUser: User | null;
+  userProfile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, profile: Omit<UserProfile, 'email' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   verifyEmail: () => Promise<void>;
-  updateUserProfile: (
-    displayName: string,
-    profileImage: string | null
-  ) => Promise<void>; // Add profile update function
+  updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   loading: boolean;
 }
 
@@ -38,74 +52,156 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        await fetchUserProfile(user.uid);
+      } else {
+        setUserProfile(null);
+      }
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  // Sign In
+  const fetchUserProfile = async (uid: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        setUserProfile(userDoc.data() as UserProfile);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-  };
-
-  // Sign Up
-  const signUp = async (email: string, password: string) => {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    if (result.user) {
-      await sendEmailVerification(result.user);
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      if (!result.user.emailVerified) {
+        await signOut(auth);
+        throw new Error('Please verify your email before signing in.');
+      }
+      await fetchUserProfile(result.user.uid);
+    } catch (error: any) {
+      if (error.code === 'auth/invalid-credential') {
+        throw new Error('Invalid email or password.');
+      }
+      throw error;
     }
   };
 
-  // Logout
-  const logout = () => signOut(auth);
-
-  // Reset Password
-  const resetPassword = (email: string) => sendPasswordResetEmail(auth, email);
-
-  // Verify Email
-  const verifyEmail = async () => {
-    if (currentUser) {
-      await sendEmailVerification(currentUser);
-    }
-  };
-
-  // Update Profile Data in Firestore
-  const updateUserProfile = async (
-    displayName: string,
-    profileImage: string | null
+  const signUp = async (
+    email: string,
+    password: string,
+    profile: Omit<UserProfile, 'email' | 'createdAt' | 'updatedAt'>
   ) => {
-    if (!currentUser) {
-      throw new Error('User is not logged in');
-    }
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      const userProfile: UserProfile = {
+        ...profile,
+        email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    const userRef = doc(db, 'users', currentUser.uid); // Firestore reference to the user's document
-    const updatedProfile = {
-      displayName,
-      profileImage: profileImage || currentUser.photoURL, // Use current photo URL if no new image
-    };
+      // Create user document
+      await setDoc(doc(db, 'users', result.user.uid), userProfile);
+
+      // Create initial settings
+      await setDoc(doc(db, 'users', result.user.uid, 'settings', 'preferences'), {
+        currency: 'USD',
+        theme: 'light',
+        notifications: {
+          email: true,
+          push: false
+        },
+        createdAt: new Date()
+      });
+
+      // Send verification email
+      await sendEmailVerification(result.user);
+
+      // Sign out the user after registration
+      await signOut(auth);
+
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('Email already in use. Please use a different email.');
+      }
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUserProfile(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('No account found with this email.');
+      }
+      throw error;
+    }
+  };
+
+  const verifyEmail = async () => {
+    if (currentUser && !currentUser.emailVerified) {
+      try {
+        await sendEmailVerification(currentUser);
+      } catch (error: any) {
+        if (error.code === 'auth/too-many-requests') {
+          throw new Error('Too many requests. Please try again later.');
+        }
+        throw error;
+      }
+    }
+  };
+
+  const updateUserProfile = async (profile: Partial<UserProfile>) => {
+    if (!currentUser) {
+      throw new Error('No user is logged in');
+    }
 
     try {
-      await setDoc(userRef, updatedProfile, { merge: true }); // Update the user document in Firestore
+      const userRef = doc(db, 'users', currentUser.uid);
+      const updatedProfile = {
+        ...profile,
+        updatedAt: new Date(),
+      };
+
+      await setDoc(userRef, updatedProfile, { merge: true });
+      await fetchUserProfile(currentUser.uid);
     } catch (error) {
-      console.error('Error updating user profile in Firestore:', error);
+      console.error('Error updating profile:', error);
       throw error;
     }
   };
 
   const value = {
     currentUser,
+    userProfile,
     signIn,
     signUp,
     logout,
     resetPassword,
     verifyEmail,
-    updateUserProfile, // Expose the update profile function
+    updateUserProfile,
     loading,
   };
 

@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Bell, DollarSign, Mail, Shield, Building, CreditCard, Plus } from 'lucide-react';
+import {
+  Bell,
+  DollarSign,
+  Mail,
+  Shield,
+  Building,
+  CreditCard,
+  Plus,
+} from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +16,7 @@ import toast from 'react-hot-toast';
 
 const currencies = [
   { code: 'USD', name: 'US Dollar' },
+  { code: 'INR', name: 'Indian Rupee' },
   { code: 'EUR', name: 'Euro' },
   { code: 'GBP', name: 'British Pound' },
   { code: 'JPY', name: 'Japanese Yen' },
@@ -15,14 +24,29 @@ const currencies = [
   { code: 'CAD', name: 'Canadian Dollar' },
   { code: 'CHF', name: 'Swiss Franc' },
   { code: 'CNY', name: 'Chinese Yuan' },
-  { code: 'INR', name: 'Indian Rupee' },
 ];
 
 const defaultPaymentMethods = [
-  { id: 'gpay', name: 'Google Pay', logo: 'https://upload.wikimedia.org/wikipedia/commons/2/24/Google_Pay_Logo.svg' },
-  { id: 'paypal', name: 'PayPal', logo: 'https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg' },
-  { id: 'apple_pay', name: 'Apple Pay', logo: 'https://upload.wikimedia.org/wikipedia/commons/b/b0/Apple_Pay_logo.svg' },
-  { id: 'stripe', name: 'Stripe', logo: 'https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg' },
+  {
+    id: 'gpay',
+    name: 'Google Pay',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Google_Pay_Logo_%282020%29.svg',
+  },
+  {
+    id: 'paypal',
+    name: 'PayPal',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg',
+  },
+  {
+    id: 'apple_pay',
+    name: 'Apple Pay',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/b/b0/Apple_Pay_logo.svg',
+  },
+  {
+    id: 'stripe',
+    name: 'Stripe',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg',
+  },
 ];
 
 export default function Settings() {
@@ -32,7 +56,7 @@ export default function Settings() {
     email: true,
     push: false,
     weekly: true,
-    monthly: true
+    monthly: true,
   });
   const [isChangingCurrency, setIsChangingCurrency] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -49,9 +73,11 @@ export default function Settings() {
 
   const loadUserSettings = async () => {
     if (!currentUser) return;
-    
+
     try {
-      const settingsDoc = await getDoc(doc(db, 'users', currentUser.uid, 'settings', 'payment'));
+      const settingsDoc = await getDoc(
+        doc(db, 'users', currentUser.uid, 'settings', 'payment')
+      );
       if (settingsDoc.exists()) {
         const data = settingsDoc.data();
         if (data.paymentMethods) setPaymentMethods(data.paymentMethods);
@@ -62,7 +88,9 @@ export default function Settings() {
     }
   };
 
-  const handleCurrencyChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleCurrencyChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
     try {
       setIsChangingCurrency(true);
       await setCurrency(e.target.value);
@@ -85,10 +113,14 @@ export default function Settings() {
 
     try {
       const updatedMethods = [...paymentMethods, newMethod];
-      await setDoc(doc(db, 'users', currentUser.uid, 'settings', 'payment'), {
-        paymentMethods: updatedMethods
-      }, { merge: true });
-      
+      await setDoc(
+        doc(db, 'users', currentUser.uid, 'settings', 'payment'),
+        {
+          paymentMethods: updatedMethods,
+        },
+        { merge: true }
+      );
+
       setPaymentMethods(updatedMethods);
       setShowAddPayment(false);
       toast.success('Payment method added successfully');
@@ -108,10 +140,14 @@ export default function Settings() {
 
     try {
       const updatedBanks = [...banks, newBank];
-      await setDoc(doc(db, 'users', currentUser.uid, 'settings', 'payment'), {
-        banks: updatedBanks
-      }, { merge: true });
-      
+      await setDoc(
+        doc(db, 'users', currentUser.uid, 'settings', 'payment'),
+        {
+          banks: updatedBanks,
+        },
+        { merge: true }
+      );
+
       setBanks(updatedBanks);
       setShowAddBank(false);
       toast.success('Bank account added successfully');
@@ -130,7 +166,10 @@ export default function Settings() {
         </div>
         <div className="space-y-4">
           <div>
-            <label htmlFor="currency" className="block text-sm font-medium mb-2">
+            <label
+              htmlFor="currency"
+              className="block text-sm font-medium mb-2"
+            >
               Default Currency
             </label>
             <div className="relative">
@@ -166,7 +205,7 @@ export default function Settings() {
             <Plus className="w-4 h-4" /> Add Method
           </button>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {paymentMethods.map((method) => (
             <div
@@ -196,13 +235,17 @@ export default function Settings() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6">
               <h3 className="text-lg font-semibold mb-4">Add Payment Method</h3>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleAddPaymentMethod(new FormData(e.currentTarget));
-              }}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddPaymentMethod(new FormData(e.currentTarget));
+                }}
+              >
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Method Name</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Method Name
+                    </label>
                     <input
                       name="name"
                       type="text"
@@ -211,7 +254,9 @@ export default function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Account Number</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Account Number
+                    </label>
                     <input
                       name="accountNumber"
                       type="text"
@@ -227,10 +272,7 @@ export default function Settings() {
                     >
                       Cancel
                     </button>
-                    <button
-                      type="submit"
-                      className="flex-1 btn btn-primary"
-                    >
+                    <button type="submit" className="flex-1 btn btn-primary">
                       Add Method
                     </button>
                   </div>
@@ -277,13 +319,17 @@ export default function Settings() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6">
               <h3 className="text-lg font-semibold mb-4">Add Bank Account</h3>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleAddBank(new FormData(e.currentTarget));
-              }}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddBank(new FormData(e.currentTarget));
+                }}
+              >
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Bank Name</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Bank Name
+                    </label>
                     <input
                       name="name"
                       type="text"
@@ -292,7 +338,9 @@ export default function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Account Number</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Account Number
+                    </label>
                     <input
                       name="accountNumber"
                       type="text"
@@ -301,7 +349,9 @@ export default function Settings() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Routing Number</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Routing Number
+                    </label>
                     <input
                       name="routingNumber"
                       type="text"
@@ -317,10 +367,7 @@ export default function Settings() {
                     >
                       Cancel
                     </button>
-                    <button
-                      type="submit"
-                      className="flex-1 btn btn-primary"
-                    >
+                    <button type="submit" className="flex-1 btn btn-primary">
                       Add Bank
                     </button>
                   </div>
@@ -342,7 +389,7 @@ export default function Settings() {
             { id: 'email', label: 'Email Notifications', icon: Mail },
             { id: 'push', label: 'Push Notifications', icon: Bell },
             { id: 'weekly', label: 'Weekly Summary', icon: Bell },
-            { id: 'monthly', label: 'Monthly Report', icon: Bell }
+            { id: 'monthly', label: 'Monthly Report', icon: Bell },
           ].map(({ id, label, icon: Icon }) => (
             <div key={id} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -355,9 +402,9 @@ export default function Settings() {
                   className="sr-only peer"
                   checked={notifications[id as keyof typeof notifications]}
                   onChange={(e) =>
-                    setNotifications(prev => ({
+                    setNotifications((prev) => ({
                       ...prev,
-                      [id]: e.target.checked
+                      [id]: e.target.checked,
                     }))
                   }
                 />

@@ -18,8 +18,13 @@ export default function SignIn() {
       await signIn(email, password);
       navigate('/');
       toast.success('Successfully signed in!');
-    } catch (error) {
-      toast.error('Failed to sign in. Please check your credentials.');
+    } catch (error: any) {
+      if (error.message === 'Please verify your email before signing in.') {
+        toast.error(error.message);
+        navigate('/verify-email');
+      } else {
+        toast.error('Failed to sign in. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }

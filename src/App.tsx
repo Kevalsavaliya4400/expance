@@ -8,11 +8,15 @@ import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calendar';
+import Transactions from './pages/Transactions';
+import Reports from './pages/Reports';
+import Bills from './pages/Bills';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
 import ForgotPassword from './pages/ForgotPassword';
+import EmailVerification from './pages/EmailVerification';
 
 function App() {
   return (
@@ -31,6 +35,7 @@ function App() {
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/signup" element={<SignUp />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/verify-email" element={<EmailVerification />} />
                 <Route
                   path="/"
                   element={
@@ -41,6 +46,9 @@ function App() {
                 >
                   <Route index element={<Dashboard />} />
                   <Route path="calendar" element={<Calendar />} />
+                  <Route path="transactions" element={<Transactions />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="bills" element={<Bills />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="profile" element={<Profile />} />
                 </Route>

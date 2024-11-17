@@ -1,8 +1,9 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -12,5 +13,13 @@ export default function PrivateRoute({ children }: { children: React.ReactNode }
     );
   }
 
-  return currentUser ? <>{children}</> : <Navigate to="/signin" />;
+  if (!currentUser) {
+    return <Navigate to="/signin" state={{ from: location }} replace />;
+  }
+
+  if (!currentUser.emailVerified) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  return <>{children}</>;
 }

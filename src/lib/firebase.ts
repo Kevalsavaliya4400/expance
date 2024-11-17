@@ -28,6 +28,7 @@ isSupported().then(supported => {
 // Firestore security rules
 /*
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
@@ -39,31 +40,72 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     
-    // User profile and settings
+    function isValidAmount(amount) {
+      return amount is number && amount > 0;
+    }
+    
+    function isValidDate(date) {
+      return date is timestamp;
+    }
+    
+    // User document rules
     match /users/{userId} {
-      allow read, write: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow read, update: if isSignedIn() && isOwner(userId);
+      allow delete: if false; // Prevent user deletion through client
       
-      // Transactions collection
+      // Transactions subcollection
       match /transactions/{transactionId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn() && 
+                     isOwner(userId) && 
+                     isValidAmount(request.resource.data.amount) &&
+                     isValidDate(request.resource.data.createdAt);
+        allow read, update, delete: if isSignedIn() && isOwner(userId);
       }
       
-      // Settings collection
+      // Settings subcollection
       match /settings/{settingId} {
         allow read, write: if isSignedIn() && isOwner(userId);
       }
       
-      // Bills collection
+      // Bills subcollection
       match /bills/{billId} {
-        allow read, write: if isSignedIn() && isOwner(userId);
-      }
-      
-      // Payment methods collection
-      match /payment/{document=**} {
         allow read, write: if isSignedIn() && isOwner(userId);
       }
     }
   }
+}
+*/
+
+// Required indexes for queries
+/*
+{
+  "indexes": [
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bills",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
 }
 */
 
