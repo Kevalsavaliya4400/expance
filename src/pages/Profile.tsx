@@ -33,24 +33,26 @@ interface UserProfile {
   profileImage?: string;
 }
 
+const initialProfile: UserProfile = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  address: '',
+  city: '',
+  country: '',
+  securityQuestion: '',
+  securityAnswer: '',
+};
+
 export default function Profile() {
   const { currentUser, logout } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [editForm, setEditForm] = useState<UserProfile>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    dateOfBirth: '',
-    address: '',
-    city: '',
-    country: '',
-    securityQuestion: '',
-    securityAnswer: '',
-  });
+  const [editForm, setEditForm] = useState<UserProfile>(initialProfile);
 
   useEffect(() => {
     if (currentUser) {

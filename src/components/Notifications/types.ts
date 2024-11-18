@@ -10,4 +10,7 @@ export interface Notification {
   billId?: string;
   dueDate?: Timestamp | Date;
   requiresConfirmation?: boolean;
+  category?: 'bill' | 'system' | 'transaction';
+  priority?: 'low' | 'medium' | 'high';
+  confirmedAt?: Timestamp | Date;
 }

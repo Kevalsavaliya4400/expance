@@ -1,6 +1,18 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, collection, getDocs, query, where, orderBy, limit, Timestamp, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  Timestamp, 
+  addDoc, 
+  updateDoc, 
+  doc, 
+  getDocs 
+} from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import toast from 'react-hot-toast';
 import { playNotificationSound } from './playNotificationSound';
@@ -37,9 +49,27 @@ interface Bill {
 
 let lastNotificationTime: { [key: string]: number } = {};
 
+// Helper function to check if a bill needs notification
+const shouldNotifyForBill = (bill: Bill) => {
+  // Don't notify for paid bills
+  if (bill.status === 'paid') return false;
+
+  const dueDate = bill.dueDate instanceof Timestamp ? bill.dueDate.toDate() : new Date(bill.dueDate);
+  const today = new Date();
+  const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+
+  // Notify for bills:
+  // 1. Due tomorrow
+  // 2. Due today
+  // 3. Overdue
+  return daysDiff <= 1 || daysDiff < 0;
+};
+
 // Helper function to create bill notifications
 export const createBillNotification = async (userId: string, bill: Bill) => {
   try {
+    if (!shouldNotifyForBill(bill)) return;
+
     const notificationsRef = collection(db, 'users', userId, 'notifications');
     const dueDate = bill.dueDate instanceof Timestamp ? bill.dueDate.toDate() : new Date(bill.dueDate);
     const today = new Date();
@@ -64,7 +94,9 @@ export const createBillNotification = async (userId: string, bill: Bill) => {
         createdAt: new Date(),
         billId: bill.id,
         dueDate: bill.dueDate,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        category: 'bill',
+        priority: 'medium'
       };
     }
 
@@ -78,7 +110,9 @@ export const createBillNotification = async (userId: string, bill: Bill) => {
         createdAt: new Date(),
         billId: bill.id,
         dueDate: bill.dueDate,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        category: 'bill',
+        priority: 'high'
       };
     }
 
@@ -92,22 +126,36 @@ export const createBillNotification = async (userId: string, bill: Bill) => {
         createdAt: new Date(),
         billId: bill.id,
         dueDate: bill.dueDate,
-        requiresConfirmation: true
+        requiresConfirmation: true,
+        category: 'bill',
+        priority: 'high'
       };
     }
 
     if (notification) {
-      await addDoc(notificationsRef, notification);
-      lastNotificationTime[bill.id] = now;
+      // Check if a similar notification already exists
+      const existingQuery = query(
+        notificationsRef,
+        where('billId', '==', bill.id),
+        where('read', '==', false),
+        limit(1)
+      );
       
-      // Play notification sound
-      playNotificationSound();
+      const existingDocs = await getDocs(existingQuery);
       
-      // Show only one toast notification
-      toast(notification.message, {
-        duration: 5000,
-        icon: notification.type === 'warning' ? '⚠️' : '🚨'
-      });
+      if (existingDocs.empty) {
+        await addDoc(notificationsRef, notification);
+        lastNotificationTime[bill.id] = now;
+        
+        // Play notification sound
+        playNotificationSound();
+        
+        // Show toast notification
+        toast(notification.message, {
+          duration: 5000,
+          icon: notification.type === 'warning' ? '⚠️' : '🚨'
+        });
+      }
     }
   } catch (error) {
     console.error('Error creating bill notification:', error);

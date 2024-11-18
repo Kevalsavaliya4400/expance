@@ -9,35 +9,17 @@ import {
   sendEmailVerification,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { db, auth, checkBillNotifications } from '../lib/firebase';
-import { doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
-import { playNotificationSound } from '../lib/playNotificationSound';
-
-interface UserProfile {
-  email: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  phone: string;
-  address: string;
-  city: string;
-  country: string;
-  securityQuestion: string;
-  securityAnswer: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 interface AuthContextType {
   currentUser: User | null;
-  userProfile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, profile: Omit<UserProfile, 'email' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  signUp: (email: string, password: string, profile: any) => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   verifyEmail: () => Promise<void>;
-  updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   loading: boolean;
 }
 
@@ -53,68 +35,14 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Check for pending notifications
-  const checkPendingNotifications = async (userId: string) => {
-    try {
-      // Check bill notifications first
-      await checkBillNotifications(userId);
-
-      // Get unread notifications
-      const notificationsRef = collection(db, 'users', userId, 'notifications');
-      const q = query(
-        notificationsRef,
-        where('read', '==', false),
-        orderBy('createdAt', 'desc'),
-        limit(5)
-      );
-
-      const snapshot = await getDocs(q);
-      const unreadNotifications = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      // If there are unread notifications, show them in a popup
-      if (unreadNotifications.length > 0) {
-        playNotificationSound();
-        
-        // Show the most recent notification as a toast
-        const mostRecent = unreadNotifications[0];
-        toast(
-          <div className="space-y-2">
-            <p className="font-medium">{mostRecent.title}</p>
-            <p className="text-sm">{mostRecent.message}</p>
-            {unreadNotifications.length > 1 && (
-              <p className="text-sm text-gray-500">
-                +{unreadNotifications.length - 1} more notifications
-              </p>
-            )}
-          </div>,
-          {
-            duration: 5000,
-            icon: mostRecent.type === 'warning' ? '⚠️' : 
-                  mostRecent.type === 'error' ? '🚨' : 
-                  mostRecent.type === 'success' ? '✅' : 'ℹ️'
-          }
-        );
-      }
-    } catch (error) {
-      console.error('Error checking notifications:', error);
-    }
-  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        await fetchUserProfile(user.uid);
-        // Check notifications immediately after login
-        await checkPendingNotifications(user.uid);
-      } else {
-        setUserProfile(null);
+        // Initialize user document and settings if they don't exist
+        await initializeUserData(user);
       }
       setLoading(false);
     });
@@ -122,142 +50,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const fetchUserProfile = async (uid: string) => {
+  async function initializeUserData(user: User) {
     try {
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      if (userDoc.exists()) {
-        setUserProfile(userDoc.data() as UserProfile);
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        // Create user document
+        await setDoc(userRef, {
+          email: user.email,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        // Initialize settings
+        const settingsRef = doc(db, 'users', user.uid, 'settings', 'preferences');
+        await setDoc(settingsRef, {
+          currency: 'USD',
+          theme: 'light',
+          notifications: {
+            email: true,
+            push: false
+          },
+          createdAt: serverTimestamp()
+        });
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error initializing user data:', error);
     }
-  };
+  }
 
   const signIn = async (email: string, password: string) => {
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      if (!result.user.emailVerified) {
-        await signOut(auth);
-        throw new Error('Please verify your email before signing in.');
-      }
-      await fetchUserProfile(result.user.uid);
-      // Check notifications immediately after successful login
-      await checkPendingNotifications(result.user.uid);
-    } catch (error: any) {
-      if (error.code === 'auth/invalid-credential') {
-        throw new Error('Invalid email or password.');
-      }
-      throw error;
-    }
-  };
-
-  const signUp = async (
-    email: string,
-    password: string,
-    profile: Omit<UserProfile, 'email' | 'createdAt' | 'updatedAt'>
-  ) => {
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      
-      const userProfile: UserProfile = {
-        ...profile,
-        email,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      // Create user document
-      await setDoc(doc(db, 'users', result.user.uid), userProfile);
-
-      // Create initial settings
-      await setDoc(doc(db, 'users', result.user.uid, 'settings', 'preferences'), {
-        currency: 'USD',
-        theme: 'light',
-        notifications: {
-          email: true,
-          push: false
-        },
-        createdAt: new Date()
-      });
-
-      // Send verification email
-      await sendEmailVerification(result.user);
-
-      // Sign out the user after registration
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    if (!result.user.emailVerified) {
       await signOut(auth);
-
-    } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Email already in use. Please use a different email.');
-      }
-      throw error;
+      throw new Error('Please verify your email before signing in.');
     }
   };
 
-  const logout = async () => {
-    try {
-      await signOut(auth);
-      setUserProfile(null);
-    } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
-    }
+  const signUp = async (email: string, password: string, profile: any) => {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Initialize user data
+    const userRef = doc(db, 'users', result.user.uid);
+    await setDoc(userRef, {
+      ...profile,
+      email,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    // Initialize settings
+    const settingsRef = doc(db, 'users', result.user.uid, 'settings', 'preferences');
+    await setDoc(settingsRef, {
+      currency: 'USD',
+      theme: 'light',
+      notifications: {
+        email: true,
+        push: false
+      },
+      createdAt: serverTimestamp()
+    });
+
+    await sendEmailVerification(result.user);
+    await signOut(auth);
   };
 
-  const resetPassword = async (email: string) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        throw new Error('No account found with this email.');
-      }
-      throw error;
-    }
-  };
+  const logout = () => signOut(auth);
+
+  const resetPassword = (email: string) => sendPasswordResetEmail(auth, email);
 
   const verifyEmail = async () => {
     if (currentUser && !currentUser.emailVerified) {
-      try {
-        await sendEmailVerification(currentUser);
-      } catch (error: any) {
-        if (error.code === 'auth/too-many-requests') {
-          throw new Error('Too many requests. Please try again later.');
-        }
-        throw error;
-      }
-    }
-  };
-
-  const updateUserProfile = async (profile: Partial<UserProfile>) => {
-    if (!currentUser) {
-      throw new Error('No user is logged in');
-    }
-
-    try {
-      const userRef = doc(db, 'users', currentUser.uid);
-      const updatedProfile = {
-        ...profile,
-        updatedAt: new Date(),
-      };
-
-      await setDoc(userRef, updatedProfile, { merge: true });
-      await fetchUserProfile(currentUser.uid);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
+      await sendEmailVerification(currentUser);
     }
   };
 
   const value = {
     currentUser,
-    userProfile,
     signIn,
     signUp,
     logout,
     resetPassword,
     verifyEmail,
-    updateUserProfile,
-    loading,
+    loading
   };
 
   return (
