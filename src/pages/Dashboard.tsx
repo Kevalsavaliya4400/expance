@@ -39,8 +39,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] =
-    useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const { currentUser } = useAuth();
   const { formatAmount, currency, convertAmount } = useCurrency();
 
@@ -76,17 +75,11 @@ export default function Dashboard() {
   // Calculate totals by converting each transaction to the current currency
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
-    .reduce(
-      (sum, t) => sum + convertAmount(t.amount, t.currency || 'USD', currency),
-      0
-    );
+    .reduce((sum, t) => sum + convertAmount(t.amount, t.currency || 'USD', currency), 0);
 
   const totalExpenses = transactions
     .filter((t) => t.type === 'expense')
-    .reduce(
-      (sum, t) => sum + convertAmount(t.amount, t.currency || 'USD', currency),
-      0
-    );
+    .reduce((sum, t) => sum + convertAmount(t.amount, t.currency || 'USD', currency), 0);
 
   const balance = totalIncome - totalExpenses;
 
@@ -168,9 +161,7 @@ export default function Dashboard() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   {stat.title}
                 </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1">
-                  {stat.value}
-                </h3>
+                <h3 className="text-xl sm:text-2xl font-bold mt-1">{stat.value}</h3>
               </div>
               <div
                 className={`p-3 rounded-full ${
@@ -195,16 +186,11 @@ export default function Dashboard() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="card p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4">
-            Income by Category
-          </h2>
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Income by Category</h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={incomeData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  className="dark:opacity-20"
-                />
+                <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip
@@ -217,16 +203,11 @@ export default function Dashboard() {
         </div>
 
         <div className="card p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4">
-            Expenses by Category
-          </h2>
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Expenses by Category</h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={expenseData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  className="dark:opacity-20"
-                />
+                <CartesianGrid strokeDasharray="3 3" className="dark:opacity-20" />
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip
@@ -241,9 +222,7 @@ export default function Dashboard() {
 
       {/* Recent Transactions */}
       <div className="card p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-semibold mb-4">
-          Recent Transactions
-        </h2>
+        <h2 className="text-lg sm:text-xl font-semibold mb-4">Recent Transactions</h2>
         <div className="space-y-3">
           {transactions.map((transaction) => (
             <div
@@ -257,17 +236,14 @@ export default function Dashboard() {
               <div>
                 <p className="font-medium">{transaction.description}</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {transaction.category} •{' '}
-                  {new Date(transaction.date).toLocaleDateString()}
+                  {transaction.category} • {new Date(transaction.date).toLocaleDateString()}
                 </p>
               </div>
-              <div
-                className={`font-semibold ${
-                  transaction.type === 'income'
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
-                }`}
-              >
+              <div className={`font-semibold ${
+                transaction.type === 'income' 
+                  ? 'text-green-600 dark:text-green-400' 
+                  : 'text-red-600 dark:text-red-400'
+              }`}>
                 {transaction.type === 'income' ? '+' : '-'}
                 {formatAmount(transaction.amount, transaction.currency)}
               </div>
